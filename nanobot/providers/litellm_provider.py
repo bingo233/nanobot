@@ -1,4 +1,4 @@
-"""LiteLLM provider implementation for multi-provider support."""
+"""LiteLLM 提供者实现，用于支持多服务商对接。"""
 
 import json
 import os
@@ -13,11 +13,10 @@ from nanobot.providers.registry import find_by_model, find_gateway
 
 class LiteLLMProvider(LLMProvider):
     """
-    LLM provider using LiteLLM for multi-provider support.
+    基于 LiteLLM 实现的 LLM 服务提供者，支持多服务商对接。
     
-    Supports OpenRouter, Anthropic, OpenAI, Gemini, and many other providers through
-    a unified interface.  Provider-specific logic is driven by the registry
-    (see providers/registry.py) — no if-elif chains needed here.
+    通过统一接口支持 OpenRouter、Anthropic、OpenAI、Gemini 等众多服务商。
+    服务商专属逻辑由注册表驱动（见 providers/registry.py）—— 无需在此处编写 if-elif 分支逻辑。
     """
     
     def __init__(
@@ -32,38 +31,38 @@ class LiteLLMProvider(LLMProvider):
         self.default_model = default_model
         self.extra_headers = extra_headers or {}
         
-        # Detect gateway / local deployment.
-        # provider_name (from config key) is the primary signal;
-        # api_key / api_base are fallback for auto-detection.
+        # 检测网关/本地部署模式
+        # provider_name（来自配置键）是主要判断依据；
+        # api_key / api_base 作为自动检测的降级方案
         self._gateway = find_gateway(provider_name, api_key, api_base)
         
-        # Configure environment variables
+        # 配置环境变量
         if api_key:
             self._setup_env(api_key, api_base, default_model)
         
         if api_base:
             litellm.api_base = api_base
         
-        # Disable LiteLLM logging noise
+        # 关闭 LiteLLM 冗余的调试日志输出
         litellm.suppress_debug_info = True
-        # Drop unsupported parameters for providers (e.g., gpt-5 rejects some params)
+        # 自动丢弃服务商不支持的参数（例如 gpt-5 会拒绝部分参数）
         litellm.drop_params = True
     
     def _setup_env(self, api_key: str, api_base: str | None, model: str) -> None:
-        """Set environment variables based on detected provider."""
+        """根据检测到的服务商设置环境变量。"""
         spec = self._gateway or find_by_model(model)
         if not spec:
             return
 
-        # Gateway/local overrides existing env; standard provider doesn't
+        # 网关/本地部署模式会覆盖已存在的环境变量；标准服务商模式则不会
         if self._gateway:
             os.environ[spec.env_key] = api_key
         else:
             os.environ.setdefault(spec.env_key, api_key)
 
-        # Resolve env_extras placeholders:
-        #   {api_key}  → user's API key
-        #   {api_base} → user's api_base, falling back to spec.default_api_base
+        # 解析 env_extras 中的占位符：
+        #   {api_key}  → 用户配置的 API 密钥
+        #   {api_base} → 用户配置的 api_base，降级使用 spec.default_api_base
         effective_base = api_base or spec.default_api_base
         for env_name, env_val in spec.env_extras:
             resolved = env_val.replace("{api_key}", api_key)
@@ -71,9 +70,9 @@ class LiteLLMProvider(LLMProvider):
             os.environ.setdefault(env_name, resolved)
     
     def _resolve_model(self, model: str) -> str:
-        """Resolve model name by applying provider/gateway prefixes."""
+        """通过添加服务商/网关前缀解析模型名称。"""
         if self._gateway:
-            # Gateway mode: apply gateway prefix, skip provider-specific prefixes
+            # 网关模式：添加网关前缀，跳过服务商专属前缀
             prefix = self._gateway.litellm_prefix
             if self._gateway.strip_model_prefix:
                 model = model.split("/")[-1]
@@ -81,7 +80,7 @@ class LiteLLMProvider(LLMProvider):
                 model = f"{prefix}/{model}"
             return model
         
-        # Standard mode: auto-prefix for known providers
+        # 标准模式：为已知服务商自动添加前缀
         spec = find_by_model(model)
         if spec and spec.litellm_prefix:
             if not any(model.startswith(s) for s in spec.skip_prefixes):
@@ -90,7 +89,7 @@ class LiteLLMProvider(LLMProvider):
         return model
     
     def _apply_model_overrides(self, model: str, kwargs: dict[str, Any]) -> None:
-        """Apply model-specific parameter overrides from the registry."""
+        """从注册表中应用模型专属的参数覆盖配置。"""
         model_lower = model.lower()
         spec = find_by_model(model)
         if spec:
@@ -108,17 +107,17 @@ class LiteLLMProvider(LLMProvider):
         temperature: float = 0.7,
     ) -> LLMResponse:
         """
-        Send a chat completion request via LiteLLM.
+        通过 LiteLLM 发送聊天补全请求。
         
-        Args:
-            messages: List of message dicts with 'role' and 'content'.
-            tools: Optional list of tool definitions in OpenAI format.
-            model: Model identifier (e.g., 'anthropic/claude-sonnet-4-5').
-            max_tokens: Maximum tokens in response.
-            temperature: Sampling temperature.
+        参数：
+            messages: 消息字典列表，包含 'role'（角色）和 'content'（内容）字段。
+            tools: 可选的工具定义列表，遵循 OpenAI 格式。
+            model: 模型标识符（例如 'anthropic/claude-sonnet-4-5'）。
+            max_tokens: 响应的最大令牌数。
+            temperature: 采样温度（控制输出随机性）。
         
-        Returns:
-            LLMResponse with content and/or tool calls.
+        返回：
+            包含内容和/或工具调用的 LLMResponse 对象。
         """
         model = self._resolve_model(model or self.default_model)
         
@@ -129,14 +128,14 @@ class LiteLLMProvider(LLMProvider):
             "temperature": temperature,
         }
         
-        # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
+        # 应用模型专属的参数覆盖（例如 kimi-k2.5 的温度参数）
         self._apply_model_overrides(model, kwargs)
         
-        # Pass api_base for custom endpoints
+        # 为自定义端点传递 api_base
         if self.api_base:
             kwargs["api_base"] = self.api_base
         
-        # Pass extra headers (e.g. APP-Code for AiHubMix)
+        # 传递额外请求头（例如 AiHubMix 所需的 APP-Code）
         if self.extra_headers:
             kwargs["extra_headers"] = self.extra_headers
         
@@ -148,21 +147,21 @@ class LiteLLMProvider(LLMProvider):
             response = await acompletion(**kwargs)
             return self._parse_response(response)
         except Exception as e:
-            # Return error as content for graceful handling
+            # 将错误信息作为内容返回，实现优雅的错误处理
             return LLMResponse(
-                content=f"Error calling LLM: {str(e)}",
+                content=f"调用 LLM 时出错: {str(e)}",
                 finish_reason="error",
             )
     
     def _parse_response(self, response: Any) -> LLMResponse:
-        """Parse LiteLLM response into our standard format."""
+        """将 LiteLLM 响应解析为标准格式。"""
         choice = response.choices[0]
         message = choice.message
         
         tool_calls = []
         if hasattr(message, "tool_calls") and message.tool_calls:
             for tc in message.tool_calls:
-                # Parse arguments from JSON string if needed
+                # 按需从 JSON 字符串解析参数
                 args = tc.function.arguments
                 if isinstance(args, str):
                     try:
@@ -195,5 +194,5 @@ class LiteLLMProvider(LLMProvider):
         )
     
     def get_default_model(self) -> str:
-        """Get the default model."""
+        """获取默认模型名称。"""
         return self.default_model

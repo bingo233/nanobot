@@ -1,0 +1,50 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        // 调试 Nanobot 网关（最常用，对应 nanobot gateway 命令）
+        {
+            "name": "Nanobot: Gateway",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/nanobot/__main__.py",  // 替换为你的 nanobot 可执行文件路径
+            "args": ["gateway"],  // 网关启动参数
+            "env": {
+                "LOG_LEVEL": "DEBUG",  // 调试模式下开启详细日志
+                "PYTHONUNBUFFERED": "1",  // 实时输出日志，不缓存
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "justMyCode": false,  // 允许调试第三方库（比如 Nanobot 源码）
+            "console": "integratedTerminal",  // 在 VS Code 终端输出
+            "cwd": "${workspaceFolder}"
+        },
+        // 调试 Nanobot 对话测试（对应 nanobot agent -m "你好"）
+        {
+            "name": "Nanobot: Agent Test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/nanobot/__main__.py",
+            "args": ["agent", "-m", "你好"],  // 测试对话的参数
+            "env": {
+                "LOG_LEVEL": "DEBUG",
+                "PYTHONUNBUFFERED": "1",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        },
+        // 调试自定义的豆包 Provider 代码（推荐）
+        {
+            "name": "Nanobot: Doubao Provider",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_doubao.py",  // 自定义测试文件
+            "env": {
+                "LOG_LEVEL": "DEBUG",
+                "PYTHONUNBUFFERED": "1",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        }
+    ]
+}

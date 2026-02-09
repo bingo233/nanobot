@@ -1,4 +1,4 @@
-"""Base class for agent tools."""
+"""代理工具的基类。"""
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -6,10 +6,10 @@ from typing import Any
 
 class Tool(ABC):
     """
-    Abstract base class for agent tools.
+    代理工具的抽象基类。
     
-    Tools are capabilities that the agent can use to interact with
-    the environment, such as reading files, executing commands, etc.
+    工具是代理可以用来与
+    环境交互的功能，例如读取文件、执行命令等。
     """
     
     _TYPE_MAP = {
@@ -24,36 +24,36 @@ class Tool(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Tool name used in function calls."""
+        """函数调用中使用的工具名称。"""
         pass
     
     @property
     @abstractmethod
     def description(self) -> str:
-        """Description of what the tool does."""
+        """工具功能的描述。"""
         pass
     
     @property
     @abstractmethod
     def parameters(self) -> dict[str, Any]:
-        """JSON Schema for tool parameters."""
+        """工具参数的JSON模式。"""
         pass
     
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:
         """
-        Execute the tool with given parameters.
+        使用给定参数执行工具。
         
-        Args:
-            **kwargs: Tool-specific parameters.
+        参数：
+            **kwargs: 工具特定参数。
         
-        Returns:
-            String result of the tool execution.
+        返回：
+            工具执行的字符串结果。
         """
         pass
 
     def validate_params(self, params: dict[str, Any]) -> list[str]:
-        """Validate tool parameters against JSON schema. Returns error list (empty if valid)."""
+        """根据JSON模式验证工具参数。返回错误列表（如果有效则为空）。"""
         schema = self.parameters or {}
         if schema.get("type", "object") != "object":
             raise ValueError(f"Schema must be object type, got {schema.get('type')!r}")
@@ -91,7 +91,7 @@ class Tool(ABC):
         return errors
     
     def to_schema(self) -> dict[str, Any]:
-        """Convert tool to OpenAI function schema format."""
+        """将工具转换为OpenAI函数模式格式。"""
         return {
             "type": "function",
             "function": {
