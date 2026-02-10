@@ -339,12 +339,14 @@ def gateway(
     
     console.print(f"{__logo__} Starting nanobot gateway on port {port}...")
     console.print(f"Config")
+    # 加载配置 配置目录 ~/.nanobot/config.json
     config = load_config()
     bus = MessageBus()
     provider = _make_provider(config)
+    # 创建会话管理器，session 目录 ~/.nanobot/sessions
     session_manager = SessionManager(config.workspace_path)
     
-    # Create cron service first (callback set after agent creation)
+    # 首先创建定时任务服务（回调将在代理创建后设置） 定时任务配置文件 ~/.nanobot/cron/jobs.json
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
     

@@ -1,4 +1,4 @@
-"""Subagent manager for background task execution."""
+"""后台子代理任务执行管理器。"""
 
 import asyncio
 import json
@@ -19,11 +19,11 @@ from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
 
 class SubagentManager:
     """
-    Manages background subagent execution.
+    管理后台子代理的执行流程。
     
-    Subagents are lightweight agent instances that run in the background
-    to handle specific tasks. They share the same LLM provider but have
-    isolated context and a focused system prompt.
+    子代理是运行在后台的轻量级代理实例，用于处理特定任务。
+    它们共享同一个大语言模型（LLM）提供器，但拥有独立的上下文环境
+    和针对性的系统提示词。
     """
     
     def __init__(
@@ -37,14 +37,14 @@ class SubagentManager:
         restrict_to_workspace: bool = False,
     ):
         from nanobot.config.schema import ExecToolConfig
-        self.provider = provider
-        self.workspace = workspace
-        self.bus = bus
-        self.model = model or provider.get_default_model()
-        self.brave_api_key = brave_api_key
-        self.exec_config = exec_config or ExecToolConfig()
-        self.restrict_to_workspace = restrict_to_workspace
-        self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        self.provider = provider  # LLM模型提供器
+        self.workspace = workspace  # 工作目录路径
+        self.bus = bus  # 消息总线实例
+        self.model = model or provider.get_default_model()  # 使用的模型名称
+        self.brave_api_key = brave_api_key  # Brave搜索API密钥
+        self.exec_config = exec_config or ExecToolConfig()  # 执行工具配置
+        self.restrict_to_workspace = restrict_to_workspace  # 是否限制操作范围至工作目录
+        self._running_tasks: dict[str, asyncio.Task[None]] = {}  # 运行中的任务字典（任务ID -> 异步任务）
     
     async def spawn(
         self,
@@ -54,36 +54,38 @@ class SubagentManager:
         origin_chat_id: str = "direct",
     ) -> str:
         """
-        Spawn a subagent to execute a task in the background.
+        启动一个子代理在后台执行指定任务。
         
-        Args:
-            task: The task description for the subagent.
-            label: Optional human-readable label for the task.
-            origin_channel: The channel to announce results to.
-            origin_chat_id: The chat ID to announce results to.
+        参数:
+            task: 子代理需要执行的任务描述。
+            label: 可选的、人类可读的任务标签。
+            origin_channel: 用于发布任务结果的渠道。
+            origin_chat_id: 用于发布任务结果的聊天ID。
         
-        Returns:
-            Status message indicating the subagent was started.
+        返回:
+            表示子代理已启动的状态提示信息。
         """
-        task_id = str(uuid.uuid4())[:8]
+        task_id = str(uuid.uuid4())[:8]  # 生成8位短任务ID
+        # 构建显示标签（过长则截断）
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
         
+        # 任务结果推送的目标位置
         origin = {
             "channel": origin_channel,
             "chat_id": origin_chat_id,
         }
         
-        # Create background task
+        # 创建后台异步任务
         bg_task = asyncio.create_task(
             self._run_subagent(task_id, task, display_label, origin)
         )
         self._running_tasks[task_id] = bg_task
         
-        # Cleanup when done
+        # 任务完成后自动清理字典中的引用
         bg_task.add_done_callback(lambda _: self._running_tasks.pop(task_id, None))
         
-        logger.info(f"Spawned subagent [{task_id}]: {display_label}")
-        return f"Subagent [{display_label}] started (id: {task_id}). I'll notify you when it completes."
+        logger.info(f"已启动子代理 [{task_id}]: {display_label}")
+        return f"子代理 [{display_label}] 已启动 (ID: {task_id})。任务完成后我会通知你。"
     
     async def _run_subagent(
         self,
@@ -92,32 +94,34 @@ class SubagentManager:
         label: str,
         origin: dict[str, str],
     ) -> None:
-        """Execute the subagent task and announce the result."""
-        logger.info(f"Subagent [{task_id}] starting task: {label}")
+        """执行子代理任务并发布执行结果。"""
+        logger.info(f"子代理 [{task_id}] 开始执行任务: {label}")
         
         try:
-            # Build subagent tools (no message tool, no spawn tool)
+            # 构建子代理可用工具（不含消息发送工具和子代理生成工具）
             tools = ToolRegistry()
+            # 限制文件操作范围（如果开启）
             allowed_dir = self.workspace if self.restrict_to_workspace else None
-            tools.register(ReadFileTool(allowed_dir=allowed_dir))
-            tools.register(WriteFileTool(allowed_dir=allowed_dir))
-            tools.register(ListDirTool(allowed_dir=allowed_dir))
+            tools.register(ReadFileTool(allowed_dir=allowed_dir))  # 读取文件工具
+            tools.register(WriteFileTool(allowed_dir=allowed_dir))  # 写入文件工具
+            tools.register(ListDirTool(allowed_dir=allowed_dir))  # 列出目录工具
+            # 执行shell命令工具
             tools.register(ExecTool(
                 working_dir=str(self.workspace),
                 timeout=self.exec_config.timeout,
                 restrict_to_workspace=self.restrict_to_workspace,
             ))
-            tools.register(WebSearchTool(api_key=self.brave_api_key))
-            tools.register(WebFetchTool())
+            tools.register(WebSearchTool(api_key=self.brave_api_key))  # 网页搜索工具
+            tools.register(WebFetchTool())  # 网页内容获取工具
             
-            # Build messages with subagent-specific prompt
+            # 构建包含子代理专属提示词的消息列表
             system_prompt = self._build_subagent_prompt(task)
             messages: list[dict[str, Any]] = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task},
+                {"role": "system", "content": system_prompt},  # 系统提示词
+                {"role": "user", "content": task},  # 用户任务指令
             ]
             
-            # Run agent loop (limited iterations)
+            # 运行代理循环（限制最大迭代次数防止无限循环）
             max_iterations = 15
             iteration = 0
             final_result: str | None = None
@@ -125,6 +129,7 @@ class SubagentManager:
             while iteration < max_iterations:
                 iteration += 1
                 
+                # 调用LLM获取响应（包含工具调用指令）
                 response = await self.provider.chat(
                     messages=messages,
                     tools=tools.get_definitions(),
@@ -132,7 +137,7 @@ class SubagentManager:
                 )
                 
                 if response.has_tool_calls:
-                    # Add assistant message with tool calls
+                    # 将工具调用指令添加到消息历史（助理角色消息）
                     tool_call_dicts = [
                         {
                             "id": tc.id,
@@ -150,11 +155,13 @@ class SubagentManager:
                         "tool_calls": tool_call_dicts,
                     })
                     
-                    # Execute tools
+                    # 执行所有工具调用
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
-                        logger.debug(f"Subagent [{task_id}] executing: {tool_call.name} with arguments: {args_str}")
+                        logger.debug(f"子代理 [{task_id}] 执行工具: {tool_call.name}，参数: {args_str}")
+                        # 执行工具并获取结果
                         result = await tools.execute(tool_call.name, tool_call.arguments)
+                        # 将工具执行结果添加到消息历史（工具角色消息）
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tool_call.id,
@@ -162,18 +169,23 @@ class SubagentManager:
                             "content": result,
                         })
                 else:
+                    # 无工具调用时，将LLM直接响应作为最终结果
                     final_result = response.content
-                    break
-            
+                    break  # 退出循环
+                
+            # 处理最大迭代次数耗尽但未生成最终结果的情况
             if final_result is None:
-                final_result = "Task completed but no final response was generated."
+                final_result = "任务已执行完毕，但未生成最终响应内容。"
             
-            logger.info(f"Subagent [{task_id}] completed successfully")
+            logger.info(f"子代理 [{task_id}] 任务执行成功")
+            # 发布执行成功的结果
             await self._announce_result(task_id, label, task, final_result, origin, "ok")
             
         except Exception as e:
-            error_msg = f"Error: {str(e)}"
-            logger.error(f"Subagent [{task_id}] failed: {e}")
+            # 捕获所有异常并记录错误信息
+            error_msg = f"错误信息: {str(e)}"
+            logger.error(f"子代理 [{task_id}] 执行失败: {e}")
+            # 发布执行失败的结果
             await self._announce_result(task_id, label, task, error_msg, origin, "error")
     
     async def _announce_result(
@@ -185,19 +197,22 @@ class SubagentManager:
         origin: dict[str, str],
         status: str,
     ) -> None:
-        """Announce the subagent result to the main agent via the message bus."""
-        status_text = "completed successfully" if status == "ok" else "failed"
+        """通过消息总线将子代理执行结果通知给主代理。"""
+        # 构建状态描述文本
+        status_text = "执行成功" if status == "ok" else "执行失败"
         
-        announce_content = f"""[Subagent '{label}' {status_text}]
+        # 构建推送内容（供主代理整理后回复用户）
+        announce_content = f"""[子代理'{label}' {status_text}]
 
-Task: {task}
+任务描述: {task}
 
-Result:
+执行结果:
 {result}
 
-Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not mention technical details like "subagent" or task IDs."""
+请将以上内容用自然语言简洁总结后回复用户（1-2句话即可）。
+不要提及「子代理」「任务ID」等技术细节。"""
         
-        # Inject as system message to trigger main agent
+        # 封装为系统消息触发主代理处理
         msg = InboundMessage(
             channel="system",
             sender_id="subagent",
@@ -205,40 +220,41 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
             content=announce_content,
         )
         
+        # 发布消息到总线
         await self.bus.publish_inbound(msg)
-        logger.debug(f"Subagent [{task_id}] announced result to {origin['channel']}:{origin['chat_id']}")
+        logger.debug(f"子代理 [{task_id}] 已将结果推送至 {origin['channel']}:{origin['chat_id']}")
     
     def _build_subagent_prompt(self, task: str) -> str:
-        """Build a focused system prompt for the subagent."""
-        return f"""# Subagent
+        """为子代理构建针对性的系统提示词。"""
+        return f"""# 子代理执行规则
 
-You are a subagent spawned by the main agent to complete a specific task.
+你是由主代理启动的专用子代理，仅负责完成指定任务。
 
-## Your Task
+## 核心任务
 {task}
 
-## Rules
-1. Stay focused - complete only the assigned task, nothing else
-2. Your final response will be reported back to the main agent
-3. Do not initiate conversations or take on side tasks
-4. Be concise but informative in your findings
+## 执行规则
+1. 聚焦任务 - 仅完成分配的任务，不执行其他无关操作
+2. 你的最终响应将被反馈给主代理
+3. 不主动发起对话，不承接额外的附带任务
+4. 发现和结论需简洁且信息完整
 
-## What You Can Do
-- Read and write files in the workspace
-- Execute shell commands
-- Search the web and fetch web pages
-- Complete the task thoroughly
+## 可执行操作
+- 读取和写入工作目录内的文件
+- 执行shell命令
+- 搜索网页并获取网页内容
+- 全面完成分配的任务
 
-## What You Cannot Do
-- Send messages directly to users (no message tool available)
-- Spawn other subagents
-- Access the main agent's conversation history
+## 禁止操作
+- 直接向用户发送消息（无消息发送工具可用）
+- 生成其他子代理
+- 访问主代理的对话历史
 
-## Workspace
-Your workspace is at: {self.workspace}
+## 工作目录
+你的工作目录路径为: {self.workspace}
 
-When you have completed the task, provide a clear summary of your findings or actions."""
+任务完成后，请提供清晰的结果总结或操作记录。"""
     
     def get_running_count(self) -> int:
-        """Return the number of currently running subagents."""
+        """返回当前正在运行的子代理数量。"""
         return len(self._running_tasks)
