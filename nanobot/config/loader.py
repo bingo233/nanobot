@@ -1,4 +1,4 @@
-"""配置加载工具。"""
+"""Configuration loading utilities."""
 
 import json
 from pathlib import Path
@@ -8,25 +8,25 @@ from nanobot.config.schema import Config
 
 
 def get_config_path() -> Path:
-    """获取默认配置文件路径。"""
+    """Get the default configuration file path."""
     return Path.home() / ".nanobot" / "config.json"
 
 
 def get_data_dir() -> Path:
-    """获取nanobot数据目录。"""
+    """Get the nanobot data directory."""
     from nanobot.utils.helpers import get_data_path
     return get_data_path()
 
 
 def load_config(config_path: Path | None = None) -> Config:
     """
-    从文件加载配置或创建默认配置。
+    Load configuration from file or create default.
     
-    参数：
-        config_path: 配置文件的可选路径。如果未提供，则使用默认路径。
+    Args:
+        config_path: Optional path to config file. Uses default if not provided.
     
-    返回：
-        加载的配置对象。
+    Returns:
+        Loaded configuration object.
     """
     path = config_path or get_config_path()
     print(f"Loading config from {path}")
@@ -46,11 +46,11 @@ def load_config(config_path: Path | None = None) -> Config:
 
 def save_config(config: Config, config_path: Path | None = None) -> None:
     """
-    将配置保存到文件。
+    Save configuration to file.
     
-    参数：
-        config: 要保存的配置。
-        config_path: 保存的可选路径。如果未提供，则使用默认路径。
+    Args:
+        config: Configuration to save.
+        config_path: Optional path to save to. Uses default if not provided.
     """
     path = config_path or get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,8 +64,8 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
 
 
 def _migrate_config(data: dict) -> dict:
-    """将旧配置格式迁移到当前格式。"""
-    # 将 tools.exec.restrictToWorkspace → tools.restrictToWorkspace
+    """Migrate old config formats to current."""
+    # Move tools.exec.restrictToWorkspace → tools.restrictToWorkspace
     tools = data.get("tools", {})
     exec_cfg = tools.get("exec", {})
     if "restrictToWorkspace" in exec_cfg and "restrictToWorkspace" not in tools:
@@ -74,7 +74,7 @@ def _migrate_config(data: dict) -> dict:
 
 
 def convert_keys(data: Any) -> Any:
-    """将camelCase键转换为snake_case以供Pydantic使用。"""
+    """Convert camelCase keys to snake_case for Pydantic."""
     if isinstance(data, dict):
         return {camel_to_snake(k): convert_keys(v) for k, v in data.items()}
     if isinstance(data, list):
@@ -83,7 +83,7 @@ def convert_keys(data: Any) -> Any:
 
 
 def convert_to_camel(data: Any) -> Any:
-    """将snake_case键转换为camelCase。"""
+    """Convert snake_case keys to camelCase."""
     if isinstance(data, dict):
         return {snake_to_camel(k): convert_to_camel(v) for k, v in data.items()}
     if isinstance(data, list):
@@ -92,7 +92,7 @@ def convert_to_camel(data: Any) -> Any:
 
 
 def camel_to_snake(name: str) -> str:
-    """将camelCase转换为snake_case。"""
+    """Convert camelCase to snake_case."""
     result = []
     for i, char in enumerate(name):
         if char.isupper() and i > 0:
